@@ -83,91 +83,124 @@ class VerificacaoEstabilidade:
         }
 
 # ==========================================
-# GERADOR DE MEMORIAL DE CÁLCULO (PDF) COM IMAGEM
+# GERADOR PROFISSIONAL DE PDF (COM TABELAS)
 # ==========================================
-def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot):
+class PDFMemorial(FPDF):
+    def header(self):
+        self.set_font("helvetica", "B", 14)
+        self.set_fill_color(41, 128, 185) # Azul corporativo
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 10, txt="SOFTWARE DE DIMENSIONAMENTO - MEMORIAL DE CÁLCULO", border=0, ln=1, align="C", fill=True)
+        self.set_text_color(0, 0, 0)
+        self.ln(5)
+        
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("helvetica", "I", 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, txt=f"Página {self.page_no()} | Gerado automaticamente a partir de extração CAD", border=0, align="C")
+        self.set_text_color(0, 0, 0)
+
+def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj):
     detalhes = resultados["__detalhes__"]
     
-    def avaliar(fs):
-        return "APROVADO" if fs >= 1.5 else "REPROVADO"
-
-    pdf = FPDF()
+    pdf = PDFMemorial()
     pdf.add_page()
     
-    pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, text="MEMORIAL DE CÁLCULO - MURO DE GABIÃO", ln=True, align="C")
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 10, text=f"Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
-    pdf.ln(2)
+    def seccao(titulo):
+        pdf.set_font("helvetica", "B", 11)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.cell(0, 8, txt=titulo, border=0, ln=1, fill=True)
+        pdf.ln(2)
 
-    # Exportação do gráfico
+    # 1. INFORMAÇÕES DO PROJETO
+    seccao("1. INFORMAÇÕES DO PROJETO")
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(40, 6, txt="Título do Projeto:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=info_proj['titulo'], border=1, ln=1)
+    pdf.set_font("helvetica", "B", 10); pdf.cell(40, 6, txt="Cliente:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=info_proj['cliente'], border=1, ln=1)
+    pdf.set_font("helvetica", "B", 10); pdf.cell(40, 6, txt="Projetista:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=info_proj['projetista'], border=1, ln=1)
+    pdf.set_font("helvetica", "B", 10); pdf.cell(40, 6, txt="Data de Emissão:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=datetime.now().strftime('%d/%m/%Y %H:%M'), border=1, ln=1)
+    pdf.ln(5)
+
+    # 2. PARÂMETROS GEOTÉCNICOS E PROPRIEDADES
+    seccao("2. PARÂMETROS GEOTÉCNICOS E PROPRIEDADES")
+    pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.1. Corpo do Muro (Gabião)", ln=1)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(100, 6, txt="Peso Específico da Pedra:", border=1); pdf.cell(40, 6, txt=f"{muro.gama_gabiao:.2f} kN/m³", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Altura Total do Muro:", border=1); pdf.cell(40, 6, txt=f"{detalhes['altura_muro']:.2f} m", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Largura Projetada da Base:", border=1); pdf.cell(40, 6, txt=f"{detalhes['largura_base']:.2f} m", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Peso Total da Estrutura:", border=1); pdf.cell(40, 6, txt=f"{detalhes['peso_muro']:.2f} kN/m", border=1, ln=1, align="C")
+    pdf.ln(3)
+
+    pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.2. Terrapleno (Solo Retido)", ln=1)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_t.gama:.2f} kN/m³", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_t.phi:.2f}°", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Coesão:", border=1); pdf.cell(40, 6, txt=f"{solo_t.coesao:.2f} kPa", border=1, ln=1, align="C")
+    pdf.ln(3)
+
+    pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.3. Fundação (Solo de Apoio)", ln=1)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_f.gama:.2f} kN/m³", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_f.phi:.2f}°", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Tensão Admissível (q_adm):", border=1); pdf.cell(40, 6, txt=f"{solo_f.q_adm:.2f} kPa", border=1, ln=1, align="C")
+    pdf.ln(5)
+
+    # 3. FORÇAS E MOMENTOS INTERMEDIÁRIOS
+    seccao("3. CÁLCULO DE ESFORÇOS (EMPUXOS E MOMENTOS)")
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(100, 6, txt="Coeficiente de Empuxo Ativo (Ka):", border=1); pdf.cell(40, 6, txt=f"{detalhes['ka']:.4f}", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Empuxo Ativo Total (Ea):", border=1); pdf.cell(40, 6, txt=f"{detalhes['empuxo_ativo']:.2f} kN/m", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Momento de Tombamento (Mt):", border=1); pdf.cell(40, 6, txt=f"{detalhes['momento_tombamento']:.2f} kN.m/m", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Momento Resistente do Muro (Mr):", border=1); pdf.cell(40, 6, txt=f"{detalhes['momento_resistente']:.2f} kN.m/m", border=1, ln=1, align="C")
+    
+    # 4. GRÁFICO E RESULTADOS ELU (Nova Página)
+    pdf.add_page()
+    seccao("4. GEOMETRIA DA SEÇÃO E SUPERFÍCIE DE RUPTURA")
+    
     tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
     tmpfile.close()
-    
     figura_plot.savefig(tmpfile.name, format="png", bbox_inches="tight", dpi=300)
-    
-    pdf.image(tmpfile.name, x=20, w=170)
+    pdf.image(tmpfile.name, x=15, w=180)
     os.remove(tmpfile.name)
-    pdf.set_y(pdf.get_y() + 115) 
+    pdf.set_y(pdf.get_y() + 100) # Empurra o cursor abaixo da imagem
     
-    def adicionar_seccao(titulo):
-        pdf.set_font("helvetica", "B", 11)
-        pdf.cell(0, 8, text=titulo, ln=True)
-        pdf.set_font("helvetica", "", 10)
-
-    adicionar_seccao("1. DADOS DE ENTRADA")
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Muro de Gabião]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³", ln=True)
-    pdf.cell(0, 6, text=f"- Altura Total (Geometria): {detalhes['altura_muro']:.2f} m", ln=True)
-    pdf.cell(0, 6, text=f"- Largura da Base: {detalhes['largura_base']:.2f} m", ln=True)
-    pdf.ln(3)
-
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Terrapleno (Solo Retido)]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Peso Específico: {solo_t.gama:.2f} kN/m³ | Ângulo de Atrito: {solo_t.phi:.2f}° | Coesão: {solo_t.coesao:.2f} kPa", ln=True)
-    pdf.ln(3)
-
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Fundação (Solo de Apoio)]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Peso Específico: {solo_f.gama:.2f} kN/m³ | Ângulo de Atrito: {solo_f.phi:.2f}° | Tensão Adm: {solo_f.q_adm:.2f} kPa", ln=True)
-    pdf.ln(6)
+    seccao("5. VERIFICAÇÕES DE ESTABILIDADE (ELU)")
     
-    # Nova página para os resultados não ficarem cortados
-    pdf.add_page()
+    # Tabela Cabeçalho
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(60, 8, txt="Critério de Verificação", border=1, align="C", fill=True)
+    pdf.cell(30, 8, txt="FS Mínimo", border=1, align="C", fill=True)
+    pdf.cell(30, 8, txt="FS Calculado", border=1, align="C", fill=True)
+    pdf.cell(40, 8, txt="Status", border=1, ln=1, align="C", fill=True)
     
-    adicionar_seccao("2. RESULTADOS E VERIFICAÇÕES DE ESTABILIDADE (ELU)")
+    pdf.set_font("helvetica", "", 10)
+    def imprimir_linha(nome, fs_min, fs_calc):
+        pdf.cell(60, 8, txt=nome, border=1, align="C")
+        pdf.cell(30, 8, txt=f"{fs_min:.2f}", border=1, align="C")
+        pdf.cell(30, 8, txt=f"{fs_calc:.2f}" if fs_calc != float('inf') else "∞", border=1, align="C")
+        
+        status = "APROVADO" if fs_calc >= fs_min else "REPROVADO"
+        if status == "APROVADO":
+            pdf.set_text_color(0, 128, 0) # Verde
+        else:
+            pdf.set_text_color(220, 0, 0) # Vermelho
+            
+        pdf.cell(40, 8, txt=status, border=1, ln=1, align="C")
+        pdf.set_text_color(0, 0, 0) # Restaura cor preta
+        
+    imprimir_linha("Estabilidade Global (Bishop)", 1.30, resultados['FS Global (Estimado)'])
+    imprimir_linha("Tombamento da Estrutura", 1.50, resultados['FS Tombamento'])
+    imprimir_linha("Deslizamento na Base", 1.50, resultados['FS Deslizamento'])
+    imprimir_linha("Capacidade de Carga", 1.50, resultados['FS Cap. Carga'])
+    pdf.ln(5)
     
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Estabilidade Global]", ln=True)
+    pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="Distribuição de Tensões na Base de Apoio:", ln=1)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Global (Estimado Bishop): {resultados['FS Global (Estimado)']}", ln=True)
-    pdf.ln(3)
-
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Tombamento]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Tombamento']} - {avaliar(resultados['FS Tombamento'])}", ln=True)
-    pdf.ln(3)
-
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Deslizamento]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Deslizamento']} - {avaliar(resultados['FS Deslizamento'])}", ln=True)
-    pdf.ln(3)
-
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, text="[Capacidade de Carga e Excentricidade da Base]", ln=True)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Tensão Máxima Aplicada ao Solo: {resultados['Tensão Máx Base (kPa)']} kPa", ln=True)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']} - {avaliar(resultados['FS Cap. Carga'])}", ln=True)
-    pdf.ln(10)
-    
-    pdf.set_font("helvetica", "I", 8)
-    pdf.cell(0, 6, text="* Relatório gerado automaticamente a partir da extração geométrica de ficheiro DXF.", ln=True, align="C")
+    pdf.cell(80, 6, txt="Excentricidade do Esforço Resultante (e):", border=1); pdf.cell(40, 6, txt=f"{resultados['Excentricidade (m)']:.3f} m", border=1, ln=1, align="C")
+    pdf.cell(80, 6, txt="Tensão Máxima Aplicada (σ_max):", border=1); pdf.cell(40, 6, txt=f"{resultados['Tensão Máx Base (kPa)']:.2f} kPa", border=1, ln=1, align="C")
+    pdf.cell(80, 6, txt="Status da Compressão na Base:", border=1); pdf.cell(40, 6, txt=f"{resultados['Status da Base']}", border=1, ln=1, align="C")
 
     return bytes(pdf.output())
 
@@ -185,13 +218,19 @@ with tab_calculadora:
     col_entrada, col_resultados = st.columns([1, 2])
 
     with col_entrada:
-        st.header("Entrada")
+        st.header("Entrada de Dados")
         
-        with st.expander("Informações de projeto & Arquivo CAD", expanded=True):
+        with st.expander("Informações do Projeto", expanded=True):
+            proj_titulo = st.text_input("Título do Projeto", value="Muro de Arrimo em Gabiões")
+            proj_cliente = st.text_input("Cliente", value="Prefeitura Municipal")
+            proj_autor = st.text_input("Projetista", value="Eng. Responsável")
+            info_projeto = {"titulo": proj_titulo, "cliente": proj_cliente, "projetista": proj_autor}
+            
+        with st.expander("Arquivo CAD e Layers", expanded=False):
             arquivo_dxf = st.file_uploader("Carregar seção DXF", type=["dxf"])
             layer_gabiao = st.text_input("Layer dos Gabiões", value="GABIOES")
             layer_terrapleno = st.text_input("Layer do Terrapleno", value="TERRAPLENO")
-            layer_fundacao = st.text_input("Layer da Fundação (Linhas)", value="FUNDACAO")
+            layer_fundacao = st.text_input("Layer da Fundação", value="FUNDACAO")
             layers_config = {"gabioes": layer_gabiao, "terrapleno": layer_terrapleno, "fundacao": layer_fundacao}
             
         with st.expander("Muro (Produto)"):
@@ -208,8 +247,8 @@ with tab_calculadora:
             q_adm = st.number_input("Tensão Admissível (kPa)", value=200.0, step=10.0)
 
     with col_resultados:
-        st.header("Resultados")
-        btn_calcular = st.button("Calcular Resultados", type="primary")
+        st.header("Análise e Resultados")
+        btn_calcular = st.button("Executar Cálculo de Estabilidade", type="primary")
         
         if btn_calcular:
             if arquivo_dxf is not None:
@@ -223,7 +262,7 @@ with tab_calculadora:
                     motor = VerificacaoEstabilidade(solo_terrapleno, solo_fundacao, muro_cad)
                     resultados = motor.calcular_seguranca()
                     
-                    st.subheader("Render e Superfície de Ruptura")
+                    st.subheader("Renderização e Superfície de Ruptura")
                     fig = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"])
                     st.pyplot(fig)
                     
@@ -250,13 +289,13 @@ with tab_calculadora:
                     st.write("---")
                     st.dataframe(pd.DataFrame([tabela_resultados]))
                     
-                    st.markdown("### Exportação")
-                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig)
+                    st.markdown("### Exportação Profissional")
+                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig, info_projeto)
                     
                     st.download_button(
-                        label="📄 Baixar Memorial de Cálculo Completo (.pdf)",
+                        label="📄 Baixar Memorial de Cálculo Profissional (.pdf)",
                         data=pdf_bytes,
-                        file_name=f"Memorial_Gabiao_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        file_name=f"Memorial_Projeto_{info_projeto['titulo'].replace(' ','_')}.pdf",
                         mime="application/pdf"
                     )
                     
