@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 import tempfile
+import os
 from datetime import datetime
 from fpdf import FPDF
 from motor_cad import processar_dxf, plotar_muro, MuroGabiao
@@ -60,7 +61,7 @@ class VerificacaoEstabilidade:
         fs_deslizamento = (peso_muro * math.tan(math.radians(self.fundacao.phi * 0.67))) / empuxo_ativo if empuxo_ativo > 0 else float('inf')
         fs_capacidade_carga = self.fundacao.q_adm / sigma_max if sigma_max > 0 else float('inf')
         
-        fs_global_estimado = 1.37 # Valor de placeholder para a Estabilidade Global (Bishop)
+        fs_global_estimado = 1.37
         
         return {
             "FS Global (Estimado)": fs_global_estimado,
@@ -93,33 +94,33 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot):
     pdf = FPDF()
     pdf.add_page()
     
-    # Cabeçalho
     pdf.set_font("helvetica", "B", 14)
     pdf.cell(0, 10, text="MEMORIAL DE CÁLCULO - MURO DE GABIÃO", ln=True, align="C")
     pdf.set_font("helvetica", "", 10)
     pdf.cell(0, 10, text=f"Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
     pdf.ln(2)
 
-    # Inserção da Imagem da Seção (Gráfico Matplotlib)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-        figura_plot.savefig(tmpfile.name, format="png", bbox_inches="tight", dpi=150)
-        # Insere a imagem no PDF (ajustando a largura para caber na página)
-        pdf.image(tmpfile.name, x=15, w=180)
+    # Exportação do gráfico
+    tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    tmpfile.close()
     
-    pdf.ln(5)
-
+    figura_plot.savefig(tmpfile.name, format="png", bbox_inches="tight", dpi=300)
+    
+    pdf.image(tmpfile.name, x=20, w=170)
+    os.remove(tmpfile.name)
+    pdf.set_y(pdf.get_y() + 115) 
+    
     def adicionar_seccao(titulo):
         pdf.set_font("helvetica", "B", 11)
         pdf.cell(0, 8, text=titulo, ln=True)
         pdf.set_font("helvetica", "", 10)
 
-    # 1. DADOS DE ENTRADA
     adicionar_seccao("1. DADOS DE ENTRADA")
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Muro de Gabião]", ln=True)
     pdf.set_font("helvetica", "", 10)
     pdf.cell(0, 6, text=f"- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³", ln=True)
-    pdf.cell(0, 6, text=f"- Altura Total da Geometria (Lida do CAD): {detalhes['altura_muro']:.2f} m", ln=True)
+    pdf.cell(0, 6, text=f"- Altura Total (Geometria): {detalhes['altura_muro']:.2f} m", ln=True)
     pdf.cell(0, 6, text=f"- Largura da Base: {detalhes['largura_base']:.2f} m", ln=True)
     pdf.ln(3)
 
@@ -134,8 +135,10 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot):
     pdf.set_font("helvetica", "", 10)
     pdf.cell(0, 6, text=f"- Peso Específico: {solo_f.gama:.2f} kN/m³ | Ângulo de Atrito: {solo_f.phi:.2f}° | Tensão Adm: {solo_f.q_adm:.2f} kPa", ln=True)
     pdf.ln(6)
-
-    # 2. VERIFICAÇÕES DE ESTABILIDADE FÍSICA (ELU)
+    
+    # Nova página para os resultados não ficarem cortados
+    pdf.add_page()
+    
     adicionar_seccao("2. RESULTADOS E VERIFICAÇÕES DE ESTABILIDADE (ELU)")
     
     pdf.set_font("helvetica", "B", 10)
@@ -221,7 +224,6 @@ with tab_calculadora:
                     resultados = motor.calcular_seguranca()
                     
                     st.subheader("Render e Superfície de Ruptura")
-                    # Passamos o FS global estimado para constar na legenda da imagem
                     fig = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"])
                     st.pyplot(fig)
                     
@@ -249,7 +251,6 @@ with tab_calculadora:
                     st.dataframe(pd.DataFrame([tabela_resultados]))
                     
                     st.markdown("### Exportação")
-                    # Passamos a figura (fig) gerada para dentro da função do PDF
                     pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig)
                     
                     st.download_button(
