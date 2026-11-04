@@ -90,7 +90,6 @@ def processar_dxf(arquivo_dxf, layers):
     return muro, geometria_extraida
 
 def plotar_muro(geometria_extraida, fs_global=1.37, vista_geral=False):
-    # Se for a vista geral, cria uma figura mais larga
     fig, ax = plt.subplots(figsize=(14, 4) if vista_geral else (10, 6))
     
     for poligono in geometria_extraida["terrapleno"]:
@@ -103,11 +102,11 @@ def plotar_muro(geometria_extraida, fs_global=1.37, vista_geral=False):
         ax.plot(xs, ys, color='brown', linewidth=2, label="Fundação")
 
     for i, poligono in enumerate(geometria_extraida["gabioes"]):
-        cor_bloco = '#4CAF50' if i < len(geometria_extraida["gabioes"])/2 else '#FFEB3B'
-        poly_patch = patches.Polygon(poligono, closed=True, facecolor=cor_bloco, edgecolor='black', linewidth=1.2)
+        # Fundo transparente e borda preta
+        poly_patch = patches.Polygon(poligono, closed=True, facecolor='none', edgecolor='black', linewidth=1.2)
         ax.add_patch(poly_patch)
         if i == 0:
-            poly_patch.set_label("Gabiões (FS Local)")
+            poly_patch.set_label("Gabiões")
             
     if geometria_extraida["gabioes"]:
         pe_x = min([p[0] for pol in geometria_extraida["gabioes"] for p in pol])
@@ -124,7 +123,6 @@ def plotar_muro(geometria_extraida, fs_global=1.37, vista_geral=False):
         validos = arco_y < (pe_y + 3)
         ax.plot(arco_x[validos], arco_y[validos], color='red', linewidth=1.5, linestyle='-', label=f"Ruptura Global (FS={fs_global})")
         
-        # Só aplica o Zoom (Crop) se NÃO for a vista geral
         if not vista_geral:
             todos_x = [p[0] for pol in geometria_extraida["gabioes"] for p in pol]
             todos_y = [p[1] for pol in geometria_extraida["gabioes"] for p in pol]
@@ -133,7 +131,6 @@ def plotar_muro(geometria_extraida, fs_global=1.37, vista_geral=False):
             ax.set_xlim(min(todos_x) - (altura_muro * 2.5), max(todos_x) + (altura_muro * 1.5))
             ax.set_ylim(min(todos_y) - (altura_muro * 1.0), max(todos_y) + (altura_muro * 1.5))
 
-    # Mantém SEMPRE a escala 1:1 (equal) para evitar distorção visual da engenharia
     ax.set_aspect('equal')
     
     ax.set_xlabel("Coordenada X (m)")
