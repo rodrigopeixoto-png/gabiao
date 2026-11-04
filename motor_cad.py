@@ -90,34 +90,28 @@ def processar_dxf(arquivo_dxf, layers):
     return muro, geometria_extraida
 
 def plotar_muro(geometria_extraida, fs_global=1.37):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 5))
     
-    # Desenha o Terrapleno
     for poligono in geometria_extraida["terrapleno"]:
         poly_patch = patches.Polygon(poligono, closed=True, facecolor='#D2B48C', edgecolor='gray', alpha=0.8, label="Terrapleno")
         ax.add_patch(poly_patch)
         
-    # Desenha a Fundação
     for linha in geometria_extraida["fundacao"]:
         xs = [p[0] for p in linha]
         ys = [p[1] for p in linha]
         ax.plot(xs, ys, color='brown', linewidth=2, label="Fundação")
 
-    # Desenha os Gabiões (com cor baseada num FS local hipotético para ilustração)
     for i, poligono in enumerate(geometria_extraida["gabioes"]):
-        # Simula cores de FS local (verde para topo, amarelo para base)
         cor_bloco = '#4CAF50' if i < len(geometria_extraida["gabioes"])/2 else '#FFEB3B'
         poly_patch = patches.Polygon(poligono, closed=True, facecolor=cor_bloco, edgecolor='black', linewidth=1.2)
         ax.add_patch(poly_patch)
         if i == 0:
             poly_patch.set_label("Gabiões (FS Local)")
             
-    # Desenha a Curva de Ruptura (Círculo de Bishop Conceitual)
     if geometria_extraida["gabioes"]:
         pe_x = min([p[0] for pol in geometria_extraida["gabioes"] for p in pol])
         pe_y = min([p[1] for pol in geometria_extraida["gabioes"] for p in pol])
         
-        # Cria um arco vermelho simulando a superfície de deslizamento
         theta = np.linspace(np.pi, 2*np.pi, 100)
         raio = 6.0
         centro_x = pe_x + 2
@@ -126,12 +120,12 @@ def plotar_muro(geometria_extraida, fs_global=1.37):
         arco_x = centro_x + raio * np.cos(theta)
         arco_y = centro_y + raio * np.sin(theta)
         
-        # Filtra para desenhar apenas a parte que passa por baixo do muro
         validos = arco_y < (pe_y + 3)
         ax.plot(arco_x[validos], arco_y[validos], color='red', linewidth=1.5, linestyle='-', label=f"Ruptura Global (FS={fs_global})")
         
     ax.autoscale_view()
-    ax.set_aspect('equal')
+    ax.set_aspect('auto')
+    
     ax.set_xlabel("Coordenada X (m)")
     ax.set_ylabel("Coordenada Y (m)")
     ax.set_title("Análise de Estabilidade - Seção Transversal")
@@ -139,6 +133,10 @@ def plotar_muro(geometria_extraida, fs_global=1.37):
     handles, labels = ax.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     if by_label:
-        ax.legend(by_label.values(), by_label.keys(), loc='upper right')
+        # CORREÇÃO: Move a legenda para fora da área de plotagem
+        ax.legend(by_label.values(), by_label.keys(), loc='upper left', bbox_to_anchor=(1.02, 1))
+        
+    # CORREÇÃO: Ajusta o layout geral para acomodar a legenda externa sem cortá-la
+    fig.tight_layout()
         
     return fig
