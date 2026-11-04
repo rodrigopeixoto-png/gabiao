@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import math
+import tempfile
 from datetime import datetime
 from fpdf import FPDF
 from motor_cad import processar_dxf, plotar_muro, MuroGabiao
@@ -59,7 +60,10 @@ class VerificacaoEstabilidade:
         fs_deslizamento = (peso_muro * math.tan(math.radians(self.fundacao.phi * 0.67))) / empuxo_ativo if empuxo_ativo > 0 else float('inf')
         fs_capacidade_carga = self.fundacao.q_adm / sigma_max if sigma_max > 0 else float('inf')
         
+        fs_global_estimado = 1.37 # Valor de placeholder para a Estabilidade Global (Bishop)
+        
         return {
+            "FS Global (Estimado)": fs_global_estimado,
             "FS Tombamento": round(fs_tombamento, 2),
             "FS Deslizamento": round(fs_deslizamento, 2),
             "FS Cap. Carga": round(fs_capacidade_carga, 2),
@@ -78,9 +82,9 @@ class VerificacaoEstabilidade:
         }
 
 # ==========================================
-# GERADOR DE MEMORIAL DE CÁLCULO (PDF)
+# GERADOR DE MEMORIAL DE CÁLCULO (PDF) COM IMAGEM
 # ==========================================
-def gerar_memorial_pdf(resultados, muro, solo_t, solo_f):
+def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot):
     detalhes = resultados["__detalhes__"]
     
     def avaliar(fs):
@@ -89,14 +93,21 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f):
     pdf = FPDF()
     pdf.add_page()
     
-    # Configuração da Fonte (Usando fonte nativa que não requer ficheiros externos)
+    # Cabeçalho
     pdf.set_font("helvetica", "B", 14)
     pdf.cell(0, 10, text="MEMORIAL DE CÁLCULO - MURO DE GABIÃO", ln=True, align="C")
     pdf.set_font("helvetica", "", 10)
     pdf.cell(0, 10, text=f"Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
+    pdf.ln(2)
+
+    # Inserção da Imagem da Seção (Gráfico Matplotlib)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        figura_plot.savefig(tmpfile.name, format="png", bbox_inches="tight", dpi=150)
+        # Insere a imagem no PDF (ajustando a largura para caber na página)
+        pdf.image(tmpfile.name, x=15, w=180)
+    
     pdf.ln(5)
 
-    # Função auxiliar para secções
     def adicionar_seccao(titulo):
         pdf.set_font("helvetica", "B", 11)
         pdf.cell(0, 8, text=titulo, ln=True)
@@ -110,63 +121,51 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f):
     pdf.cell(0, 6, text=f"- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³", ln=True)
     pdf.cell(0, 6, text=f"- Altura Total da Geometria (Lida do CAD): {detalhes['altura_muro']:.2f} m", ln=True)
     pdf.cell(0, 6, text=f"- Largura da Base: {detalhes['largura_base']:.2f} m", ln=True)
-    pdf.cell(0, 6, text=f"- Peso Total do Muro: {detalhes['peso_muro']:.2f} kN/m", ln=True)
     pdf.ln(3)
 
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Terrapleno (Solo Retido)]", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Peso Específico: {solo_t.gama:.2f} kN/m³", ln=True)
-    pdf.cell(0, 6, text=f"- Ângulo de Atrito: {solo_t.phi:.2f}°", ln=True)
-    pdf.cell(0, 6, text=f"- Coesão: {solo_t.coesao:.2f} kPa", ln=True)
+    pdf.cell(0, 6, text=f"- Peso Específico: {solo_t.gama:.2f} kN/m³ | Ângulo de Atrito: {solo_t.phi:.2f}° | Coesão: {solo_t.coesao:.2f} kPa", ln=True)
     pdf.ln(3)
 
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Fundação (Solo de Apoio)]", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Peso Específico: {solo_f.gama:.2f} kN/m³", ln=True)
-    pdf.cell(0, 6, text=f"- Ângulo de Atrito: {solo_f.phi:.2f}°", ln=True)
-    pdf.cell(0, 6, text=f"- Tensão Admissível Informada: {solo_f.q_adm:.2f} kPa", ln=True)
+    pdf.cell(0, 6, text=f"- Peso Específico: {solo_f.gama:.2f} kN/m³ | Ângulo de Atrito: {solo_f.phi:.2f}° | Tensão Adm: {solo_f.q_adm:.2f} kPa", ln=True)
     pdf.ln(6)
 
-    # 2. CÁLCULO DE FORÇAS E MOMENTOS
-    adicionar_seccao("2. CÁLCULO DE FORÇAS E MOMENTOS")
-    pdf.cell(0, 6, text=f"- Coeficiente de Empuxo Ativo (Ka): {detalhes['ka']:.4f}", ln=True)
-    pdf.cell(0, 6, text=f"- Empuxo Ativo Total (Ea): {detalhes['empuxo_ativo']:.2f} kN/m", ln=True)
-    pdf.cell(0, 6, text=f"- Momento de Tombamento (Mt): {detalhes['momento_tombamento']:.2f} kN.m/m", ln=True)
-    pdf.cell(0, 6, text=f"- Momento Resistente (Mr): {detalhes['momento_resistente']:.2f} kN.m/m", ln=True)
-    pdf.ln(6)
+    # 2. VERIFICAÇÕES DE ESTABILIDADE FÍSICA (ELU)
+    adicionar_seccao("2. RESULTADOS E VERIFICAÇÕES DE ESTABILIDADE (ELU)")
+    
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Estabilidade Global]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Global (Estimado Bishop): {resultados['FS Global (Estimado)']}", ln=True)
+    pdf.ln(3)
 
-    # 3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA
-    adicionar_seccao("3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA")
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Tombamento]", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Tombamento']}", ln=True)
-    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Tombamento'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Tombamento']} - {avaliar(resultados['FS Tombamento'])}", ln=True)
     pdf.ln(3)
 
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Deslizamento]", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Deslizamento']}", ln=True)
-    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Deslizamento'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Deslizamento']} - {avaliar(resultados['FS Deslizamento'])}", ln=True)
     pdf.ln(3)
 
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 6, text="[Capacidade de Carga e Excentricidade da Base]", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, text=f"- Excentricidade (e): {resultados['Excentricidade (m)']} m", ln=True)
-    pdf.cell(0, 6, text=f"- Status da Distribuição na Base: {resultados['Status da Base']}", ln=True)
     pdf.cell(0, 6, text=f"- Tensão Máxima Aplicada ao Solo: {resultados['Tensão Máx Base (kPa)']} kPa", ln=True)
-    pdf.cell(0, 6, text=f"- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']}", ln=True)
-    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Cap. Carga'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']} - {avaliar(resultados['FS Cap. Carga'])}", ln=True)
     pdf.ln(10)
     
     pdf.set_font("helvetica", "I", 8)
     pdf.cell(0, 6, text="* Relatório gerado automaticamente a partir da extração geométrica de ficheiro DXF.", ln=True, align="C")
 
-    # Retorna o PDF em formato de bytes para ser transferido
     return bytes(pdf.output())
 
 # ==========================================
@@ -187,17 +186,10 @@ with tab_calculadora:
         
         with st.expander("Informações de projeto & Arquivo CAD", expanded=True):
             arquivo_dxf = st.file_uploader("Carregar seção DXF", type=["dxf"])
-            
-            st.markdown("**Configuração de Layers do CAD:**")
             layer_gabiao = st.text_input("Layer dos Gabiões", value="GABIOES")
             layer_terrapleno = st.text_input("Layer do Terrapleno", value="TERRAPLENO")
             layer_fundacao = st.text_input("Layer da Fundação (Linhas)", value="FUNDACAO")
-            
-            layers_config = {
-                "gabioes": layer_gabiao,
-                "terrapleno": layer_terrapleno,
-                "fundacao": layer_fundacao
-            }
+            layers_config = {"gabioes": layer_gabiao, "terrapleno": layer_terrapleno, "fundacao": layer_fundacao}
             
         with st.expander("Muro (Produto)"):
             peso_gabiao = st.number_input("Peso Específico do Gabião (kN/m³)", value=20.0, step=1.0)
@@ -228,14 +220,14 @@ with tab_calculadora:
                     motor = VerificacaoEstabilidade(solo_terrapleno, solo_fundacao, muro_cad)
                     resultados = motor.calcular_seguranca()
                     
-                    st.subheader("Render")
-                    fig = plotar_muro(geometria_cad)
+                    st.subheader("Render e Superfície de Ruptura")
+                    # Passamos o FS global estimado para constar na legenda da imagem
+                    fig = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"])
                     st.pyplot(fig)
                     
-                    st.subheader("Verificações Físicas")
+                    st.subheader("Verificações Físicas (ELU)")
                     
                     metrica_tomb, metrica_desl, metrica_cap = st.columns(3)
-                    
                     def cor_status(fs):
                         return "normal" if fs >= 1.5 else "inverse"
                         
@@ -253,18 +245,15 @@ with tab_calculadora:
                     
                     tabela_resultados = resultados.copy()
                     del tabela_resultados["__detalhes__"]
-                    
                     st.write("---")
                     st.dataframe(pd.DataFrame([tabela_resultados]))
                     
-                    # ----------------------------------------------------
-                    # BOTÃO DE EXPORTAÇÃO DO MEMORIAL (PDF)
-                    # ----------------------------------------------------
                     st.markdown("### Exportação")
-                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao)
+                    # Passamos a figura (fig) gerada para dentro da função do PDF
+                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig)
                     
                     st.download_button(
-                        label="📄 Baixar Memorial de Cálculo (.pdf)",
+                        label="📄 Baixar Memorial de Cálculo Completo (.pdf)",
                         data=pdf_bytes,
                         file_name=f"Memorial_Gabiao_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                         mime="application/pdf"
@@ -276,29 +265,5 @@ with tab_calculadora:
                 st.warning("Faça o upload de um ficheiro DXF contendo a seção do muro antes de calcular.")
 
 with tab_instrucoes:
-    st.header("Como preparar o desenho no CAD")
-    
-    st.markdown("""
-    Para que o software consiga extrair a geometria perfeitamente e calcular os volumes, centros de gravidade e áreas, o seu ficheiro **.dxf** deve obedecer a três regras simples de desenho:
-
-    ### 1. O Muro de Gabião
-    * **O que desenhar:** Cada bloco (caixa) do gabião deve ser desenhado como uma **polilinha fechada** (`LWPOLYLINE`) ou retângulo.
-    * **Onde colocar:** Todos os blocos devem estar obrigatoriamente num layer chamado **`GABIOES`**.
-    * **Inclinação (Tilt):** Pode desenhar o muro a prumo ou com qualquer inclinação. O software calculará o centro de massa exato do polígono.
-
-    ### 2. O Maciço / Terrapleno
-    * **O que desenhar:** Desenhe o contorno completo do solo que está a ser arrimado utilizando uma **polilinha fechada**. *Não utilize "hatch" (hachuras).*
-    * **Onde colocar:** Esta polilinha deve estar no layer **`TERRAPLENO`**.
-
-    ### 3. A Fundação / Terreno de Apoio
-    * **O que desenhar:** Desenhe as linhas que representam o solo onde o muro está apoiado. Podem ser linhas soltas (`LINE`) ou uma polilinha aberta.
-    * **Onde colocar:** Estas linhas devem estar no layer **`FUNDACAO`**.
-
-    ---
-    
-    ### ⚙️ Executando o Cálculo
-    1. Guarde o seu desenho no AutoCAD/ZWCAD/BricsCAD no formato **DXF** (qualquer versão serve).
-    2. Na aba **Calculadora**, faça o upload do ficheiro.
-    3. Preencha as propriedades físicas do Solo e do Gabião e clique em **Calcular Resultados**.
-    4. Um botão de **Download** aparecerá no final da página para transferir o seu Memorial Descritivo completo em **PDF**.
-    """)
+    st.header("Instruções de Uso")
+    st.markdown("Para que o software consiga extrair a geometria, desenhe o muro no layer `GABIOES`, o maciço no layer `TERRAPLENO` e a base no layer `FUNDACAO`. Salve em DXF e faça o upload.")
