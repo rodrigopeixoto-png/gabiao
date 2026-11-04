@@ -74,9 +74,8 @@ def processar_dxf(arquivo_dxf, layers):
     geometria_extraida["terrapleno"] = extrair_pontos(layers["terrapleno"])
     geometria_extraida["fundacao"] = extrair_pontos(layers["fundacao"])
     
-    # Prevenção de erro caso o layer esteja vazio ou com nome errado
     if not geometria_extraida["gabioes"]:
-        raise ValueError(f"Nenhum gabião encontrado no layer {layers['gabioes']}. Verifique o CAD.")
+        raise ValueError(f"Nenhum gabião encontrado no layer {layers['gabioes']}. Verifique o ficheiro CAD.")
 
     muro = MuroGabiao(peso_especifico=20.0) 
     
