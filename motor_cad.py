@@ -90,7 +90,7 @@ def processar_dxf(arquivo_dxf, layers):
     return muro, geometria_extraida
 
 def plotar_muro(geometria_extraida, fs_global=1.37):
-    fig, ax = plt.subplots(figsize=(12, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
     
     for poligono in geometria_extraida["terrapleno"]:
         poly_patch = patches.Polygon(poligono, closed=True, facecolor='#D2B48C', edgecolor='gray', alpha=0.8, label="Terrapleno")
@@ -123,8 +123,16 @@ def plotar_muro(geometria_extraida, fs_global=1.37):
         validos = arco_y < (pe_y + 3)
         ax.plot(arco_x[validos], arco_y[validos], color='red', linewidth=1.5, linestyle='-', label=f"Ruptura Global (FS={fs_global})")
         
-    ax.autoscale_view()
-    ax.set_aspect('auto')
+        # Zoom dinâmico focado na zona do muro para permitir a escala 1:1 sem distorção
+        todos_x = [p[0] for pol in geometria_extraida["gabioes"] for p in pol]
+        todos_y = [p[1] for pol in geometria_extraida["gabioes"] for p in pol]
+        altura_muro = max(todos_y) - min(todos_y)
+        
+        ax.set_xlim(min(todos_x) - (altura_muro * 2.5), max(todos_x) + (altura_muro * 1.5))
+        ax.set_ylim(min(todos_y) - (altura_muro * 1.0), max(todos_y) + (altura_muro * 1.5))
+
+    # Garante a proporção física exata (1 metro = 1 metro)
+    ax.set_aspect('equal')
     
     ax.set_xlabel("Coordenada X (m)")
     ax.set_ylabel("Coordenada Y (m)")
@@ -133,10 +141,9 @@ def plotar_muro(geometria_extraida, fs_global=1.37):
     handles, labels = ax.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     if by_label:
-        # CORREÇÃO: Move a legenda para fora da área de plotagem
+        # Coloca a legenda fora do gráfico para não ocultar a estrutura
         ax.legend(by_label.values(), by_label.keys(), loc='upper left', bbox_to_anchor=(1.02, 1))
         
-    # CORREÇÃO: Ajusta o layout geral para acomodar a legenda externa sem cortá-la
     fig.tight_layout()
         
     return fig
