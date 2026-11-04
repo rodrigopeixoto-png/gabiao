@@ -95,7 +95,7 @@ class VerificacaoEstabilidade:
         # Procura o bloco mais baixo e mede a distância entre o X mínimo e o X máximo desse bloco
         todos_y = [p[1] for poligono in self.muro.blocos_poligonos for p in poligono]
         y_minimo = min(todos_y)
-        blocos_base = [pol para pol in self.muro.blocos_poligonos if any(abs(p[1] - y_minimo) < 0.1 for p in pol)]
+        blocos_base = [pol for pol in self.muro.blocos_poligonos if any(abs(p[1] - y_minimo) < 0.1 for p in pol)]
         
         x_base = [p[0] for pol in blocos_base for p in pol]
         B = max(x_base) - min(x_base)
