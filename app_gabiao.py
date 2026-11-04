@@ -1,4 +1,13 @@
+import streamlit as st
+import pandas as pd
 import math
+
+# Importa as funções e classes do ficheiro que acabou de criar
+from motor_cad import processar_dxf, plotar_muro, MuroGabiao 
+
+# ... (Mantenha aqui as classes Solo e VerificacaoEstabilidade) ...
+
+# ... (Mantenha aqui a Interface do Streamlit) ...
 
 # 1. Função Matemática para Polígonos (Shoelace Formula)
 def calcular_propriedades_poligono(pontos):
