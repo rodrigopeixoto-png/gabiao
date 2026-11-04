@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from datetime import datetime
+from fpdf import FPDF
 from motor_cad import processar_dxf, plotar_muro, MuroGabiao
 
 # ==========================================
@@ -58,7 +59,6 @@ class VerificacaoEstabilidade:
         fs_deslizamento = (peso_muro * math.tan(math.radians(self.fundacao.phi * 0.67))) / empuxo_ativo if empuxo_ativo > 0 else float('inf')
         fs_capacidade_carga = self.fundacao.q_adm / sigma_max if sigma_max > 0 else float('inf')
         
-        # Retornamos também os dados intermediários para o Memorial de Cálculo
         return {
             "FS Tombamento": round(fs_tombamento, 2),
             "FS Deslizamento": round(fs_deslizamento, 2),
@@ -78,66 +78,96 @@ class VerificacaoEstabilidade:
         }
 
 # ==========================================
-# GERADOR DE MEMORIAL DE CÁLCULO
+# GERADOR DE MEMORIAL DE CÁLCULO (PDF)
 # ==========================================
-def gerar_memorial(resultados, muro, solo_t, solo_f):
+def gerar_memorial_pdf(resultados, muro, solo_t, solo_f):
     detalhes = resultados["__detalhes__"]
     
     def avaliar(fs):
         return "APROVADO" if fs >= 1.5 else "REPROVADO"
 
-    memorial = f"""=========================================================
-             MEMORIAL DE CÁLCULO - MURO DE GABIÃO
-=========================================================
-Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Configuração da Fonte (Usando fonte nativa que não requer ficheiros externos)
+    pdf.set_font("helvetica", "B", 14)
+    pdf.cell(0, 10, text="MEMORIAL DE CÁLCULO - MURO DE GABIÃO", ln=True, align="C")
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 10, text=f"Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
+    pdf.ln(5)
 
-1. DADOS DE ENTRADA
----------------------------------------------------------
-[Muro de Gabião]
-- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³
-- Altura Total da Geometria (Lida do CAD): {detalhes['altura_muro']:.2f} m
-- Largura da Base: {detalhes['largura_base']:.2f} m
-- Peso Total do Muro: {detalhes['peso_muro']:.2f} kN/m
+    # Função auxiliar para secções
+    def adicionar_seccao(titulo):
+        pdf.set_font("helvetica", "B", 11)
+        pdf.cell(0, 8, text=titulo, ln=True)
+        pdf.set_font("helvetica", "", 10)
 
-[Terrapleno (Solo Retido)]
-- Peso Específico: {solo_t.gama:.2f} kN/m³
-- Ângulo de Atrito: {solo_t.phi:.2f}°
-- Coesão: {solo_t.coesao:.2f} kPa
+    # 1. DADOS DE ENTRADA
+    adicionar_seccao("1. DADOS DE ENTRADA")
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Muro de Gabião]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³", ln=True)
+    pdf.cell(0, 6, text=f"- Altura Total da Geometria (Lida do CAD): {detalhes['altura_muro']:.2f} m", ln=True)
+    pdf.cell(0, 6, text=f"- Largura da Base: {detalhes['largura_base']:.2f} m", ln=True)
+    pdf.cell(0, 6, text=f"- Peso Total do Muro: {detalhes['peso_muro']:.2f} kN/m", ln=True)
+    pdf.ln(3)
 
-[Fundação (Solo de Apoio)]
-- Peso Específico: {solo_f.gama:.2f} kN/m³
-- Ângulo de Atrito: {solo_f.phi:.2f}°
-- Tensão Admissível Informada: {solo_f.q_adm:.2f} kPa
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Terrapleno (Solo Retido)]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Peso Específico: {solo_t.gama:.2f} kN/m³", ln=True)
+    pdf.cell(0, 6, text=f"- Ângulo de Atrito: {solo_t.phi:.2f}°", ln=True)
+    pdf.cell(0, 6, text=f"- Coesão: {solo_t.coesao:.2f} kPa", ln=True)
+    pdf.ln(3)
 
-2. CÁLCULO DE FORÇAS E MOMENTOS
----------------------------------------------------------
-- Coeficiente de Empuxo Ativo (Ka): {detalhes['ka']:.4f}
-- Empuxo Ativo Total (Ea): {detalhes['empuxo_ativo']:.2f} kN/m
-- Momento de Tombamento (Mt): {detalhes['momento_tombamento']:.2f} kN.m/m
-- Momento Resistente (Mr): {detalhes['momento_resistente']:.2f} kN.m/m
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Fundação (Solo de Apoio)]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Peso Específico: {solo_f.gama:.2f} kN/m³", ln=True)
+    pdf.cell(0, 6, text=f"- Ângulo de Atrito: {solo_f.phi:.2f}°", ln=True)
+    pdf.cell(0, 6, text=f"- Tensão Admissível Informada: {solo_f.q_adm:.2f} kPa", ln=True)
+    pdf.ln(6)
 
-3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA
----------------------------------------------------------
-[Tombamento]
-- Fator de Segurança Calculado: {resultados['FS Tombamento']}
-- Status: {avaliar(resultados['FS Tombamento'])} (Mínimo exigido: 1.50)
+    # 2. CÁLCULO DE FORÇAS E MOMENTOS
+    adicionar_seccao("2. CÁLCULO DE FORÇAS E MOMENTOS")
+    pdf.cell(0, 6, text=f"- Coeficiente de Empuxo Ativo (Ka): {detalhes['ka']:.4f}", ln=True)
+    pdf.cell(0, 6, text=f"- Empuxo Ativo Total (Ea): {detalhes['empuxo_ativo']:.2f} kN/m", ln=True)
+    pdf.cell(0, 6, text=f"- Momento de Tombamento (Mt): {detalhes['momento_tombamento']:.2f} kN.m/m", ln=True)
+    pdf.cell(0, 6, text=f"- Momento Resistente (Mr): {detalhes['momento_resistente']:.2f} kN.m/m", ln=True)
+    pdf.ln(6)
 
-[Deslizamento]
-- Fator de Segurança Calculado: {resultados['FS Deslizamento']}
-- Status: {avaliar(resultados['FS Deslizamento'])} (Mínimo exigido: 1.50)
+    # 3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA
+    adicionar_seccao("3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA")
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Tombamento]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Tombamento']}", ln=True)
+    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Tombamento'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.ln(3)
 
-[Capacidade de Carga e Excentricidade da Base]
-- Excentricidade (e): {resultados['Excentricidade (m)']} m
-- Status da Distribuição na Base: {resultados['Status da Base']}
-- Tensão Máxima Aplicada ao Solo: {resultados['Tensão Máx Base (kPa)']} kPa
-- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']}
-- Status: {avaliar(resultados['FS Cap. Carga'])} (Mínimo exigido: 1.50)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Deslizamento]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Calculado: {resultados['FS Deslizamento']}", ln=True)
+    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Deslizamento'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.ln(3)
 
-=========================================================
-* Relatório gerado automaticamente a partir da extração 
-geométrica de ficheiro DXF.
-========================================================="""
-    return memorial
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, text="[Capacidade de Carga e Excentricidade da Base]", ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, text=f"- Excentricidade (e): {resultados['Excentricidade (m)']} m", ln=True)
+    pdf.cell(0, 6, text=f"- Status da Distribuição na Base: {resultados['Status da Base']}", ln=True)
+    pdf.cell(0, 6, text=f"- Tensão Máxima Aplicada ao Solo: {resultados['Tensão Máx Base (kPa)']} kPa", ln=True)
+    pdf.cell(0, 6, text=f"- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']}", ln=True)
+    pdf.cell(0, 6, text=f"- Status: {avaliar(resultados['FS Cap. Carga'])} (Mínimo exigido: 1.50)", ln=True)
+    pdf.ln(10)
+    
+    pdf.set_font("helvetica", "I", 8)
+    pdf.cell(0, 6, text="* Relatório gerado automaticamente a partir da extração geométrica de ficheiro DXF.", ln=True, align="C")
+
+    # Retorna o PDF em formato de bytes para ser transferido
+    return bytes(pdf.output())
 
 # ==========================================
 # INTERFACE STREAMLIT
@@ -221,7 +251,6 @@ with tab_calculadora:
                                        delta="OK" if resultados["FS Cap. Carga"] >= 1.5 else "INSEGURO", 
                                        delta_color=cor_status(resultados["FS Cap. Carga"]))
                     
-                    # Removemos os dados intermediários antes de exibir na tabela
                     tabela_resultados = resultados.copy()
                     del tabela_resultados["__detalhes__"]
                     
@@ -229,16 +258,16 @@ with tab_calculadora:
                     st.dataframe(pd.DataFrame([tabela_resultados]))
                     
                     # ----------------------------------------------------
-                    # BOTÃO DE EXPORTAÇÃO DO MEMORIAL
+                    # BOTÃO DE EXPORTAÇÃO DO MEMORIAL (PDF)
                     # ----------------------------------------------------
                     st.markdown("### Exportação")
-                    texto_memorial = gerar_memorial(resultados, muro_cad, solo_terrapleno, solo_fundacao)
+                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao)
                     
                     st.download_button(
-                        label="📄 Baixar Memorial de Cálculo (.txt)",
-                        data=texto_memorial,
-                        file_name=f"Memorial_Gabiao_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                        mime="text/plain"
+                        label="📄 Baixar Memorial de Cálculo (.pdf)",
+                        data=pdf_bytes,
+                        file_name=f"Memorial_Gabiao_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf"
                     )
                     
                 except Exception as e:
@@ -271,5 +300,5 @@ with tab_instrucoes:
     1. Guarde o seu desenho no AutoCAD/ZWCAD/BricsCAD no formato **DXF** (qualquer versão serve).
     2. Na aba **Calculadora**, faça o upload do ficheiro.
     3. Preencha as propriedades físicas do Solo e do Gabião e clique em **Calcular Resultados**.
-    4. Um botão de **Download** aparecerá no final da página com o seu Memorial Descritivo completo.
+    4. Um botão de **Download** aparecerá no final da página para transferir o seu Memorial Descritivo completo em **PDF**.
     """)
