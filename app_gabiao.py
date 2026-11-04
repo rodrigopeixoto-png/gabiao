@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import math
+from datetime import datetime
 from motor_cad import processar_dxf, plotar_muro, MuroGabiao
 
 # ==========================================
@@ -57,14 +58,86 @@ class VerificacaoEstabilidade:
         fs_deslizamento = (peso_muro * math.tan(math.radians(self.fundacao.phi * 0.67))) / empuxo_ativo if empuxo_ativo > 0 else float('inf')
         fs_capacidade_carga = self.fundacao.q_adm / sigma_max if sigma_max > 0 else float('inf')
         
+        # Retornamos também os dados intermediários para o Memorial de Cálculo
         return {
             "FS Tombamento": round(fs_tombamento, 2),
             "FS Deslizamento": round(fs_deslizamento, 2),
             "FS Cap. Carga": round(fs_capacidade_carga, 2),
             "Tensão Máx Base (kPa)": round(sigma_max, 2),
             "Excentricidade (m)": round(excentricidade, 3),
-            "Status da Base": status_base
+            "Status da Base": status_base,
+            "__detalhes__": {
+                "altura_muro": altura_muro,
+                "peso_muro": peso_muro,
+                "largura_base": B,
+                "ka": ka,
+                "empuxo_ativo": empuxo_ativo,
+                "momento_tombamento": momento_tombamento,
+                "momento_resistente": momento_resistente
+            }
         }
+
+# ==========================================
+# GERADOR DE MEMORIAL DE CÁLCULO
+# ==========================================
+def gerar_memorial(resultados, muro, solo_t, solo_f):
+    detalhes = resultados["__detalhes__"]
+    
+    def avaliar(fs):
+        return "APROVADO" if fs >= 1.5 else "REPROVADO"
+
+    memorial = f"""=========================================================
+             MEMORIAL DE CÁLCULO - MURO DE GABIÃO
+=========================================================
+Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+1. DADOS DE ENTRADA
+---------------------------------------------------------
+[Muro de Gabião]
+- Peso Específico adotado: {muro.gama_gabiao:.2f} kN/m³
+- Altura Total da Geometria (Lida do CAD): {detalhes['altura_muro']:.2f} m
+- Largura da Base: {detalhes['largura_base']:.2f} m
+- Peso Total do Muro: {detalhes['peso_muro']:.2f} kN/m
+
+[Terrapleno (Solo Retido)]
+- Peso Específico: {solo_t.gama:.2f} kN/m³
+- Ângulo de Atrito: {solo_t.phi:.2f}°
+- Coesão: {solo_t.coesao:.2f} kPa
+
+[Fundação (Solo de Apoio)]
+- Peso Específico: {solo_f.gama:.2f} kN/m³
+- Ângulo de Atrito: {solo_f.phi:.2f}°
+- Tensão Admissível Informada: {solo_f.q_adm:.2f} kPa
+
+2. CÁLCULO DE FORÇAS E MOMENTOS
+---------------------------------------------------------
+- Coeficiente de Empuxo Ativo (Ka): {detalhes['ka']:.4f}
+- Empuxo Ativo Total (Ea): {detalhes['empuxo_ativo']:.2f} kN/m
+- Momento de Tombamento (Mt): {detalhes['momento_tombamento']:.2f} kN.m/m
+- Momento Resistente (Mr): {detalhes['momento_resistente']:.2f} kN.m/m
+
+3. VERIFICAÇÕES DE ESTABILIDADE FÍSICA
+---------------------------------------------------------
+[Tombamento]
+- Fator de Segurança Calculado: {resultados['FS Tombamento']}
+- Status: {avaliar(resultados['FS Tombamento'])} (Mínimo exigido: 1.50)
+
+[Deslizamento]
+- Fator de Segurança Calculado: {resultados['FS Deslizamento']}
+- Status: {avaliar(resultados['FS Deslizamento'])} (Mínimo exigido: 1.50)
+
+[Capacidade de Carga e Excentricidade da Base]
+- Excentricidade (e): {resultados['Excentricidade (m)']} m
+- Status da Distribuição na Base: {resultados['Status da Base']}
+- Tensão Máxima Aplicada ao Solo: {resultados['Tensão Máx Base (kPa)']} kPa
+- Fator de Segurança Cap. Carga: {resultados['FS Cap. Carga']}
+- Status: {avaliar(resultados['FS Cap. Carga'])} (Mínimo exigido: 1.50)
+
+=========================================================
+* Relatório gerado automaticamente a partir da extração 
+geométrica de ficheiro DXF.
+========================================================="""
+    return memorial
 
 # ==========================================
 # INTERFACE STREAMLIT
@@ -74,12 +147,8 @@ st.set_page_config(page_title="Dimensionamento de Gabião", layout="wide")
 st.title("Software de Dimensionamento de Gabião")
 st.markdown("---")
 
-# Criando as Abas Principais
 tab_calculadora, tab_instrucoes = st.tabs(["🧮 Calculadora", "📖 Instruções de Uso"])
 
-# ------------------------------------------
-# ABA 1: CALCULADORA (O código antigo fica todo aqui dentro)
-# ------------------------------------------
 with tab_calculadora:
     col_entrada, col_resultados = st.columns([1, 2])
 
@@ -152,17 +221,31 @@ with tab_calculadora:
                                        delta="OK" if resultados["FS Cap. Carga"] >= 1.5 else "INSEGURO", 
                                        delta_color=cor_status(resultados["FS Cap. Carga"]))
                     
+                    # Removemos os dados intermediários antes de exibir na tabela
+                    tabela_resultados = resultados.copy()
+                    del tabela_resultados["__detalhes__"]
+                    
                     st.write("---")
-                    st.dataframe(pd.DataFrame([resultados]))
+                    st.dataframe(pd.DataFrame([tabela_resultados]))
+                    
+                    # ----------------------------------------------------
+                    # BOTÃO DE EXPORTAÇÃO DO MEMORIAL
+                    # ----------------------------------------------------
+                    st.markdown("### Exportação")
+                    texto_memorial = gerar_memorial(resultados, muro_cad, solo_terrapleno, solo_fundacao)
+                    
+                    st.download_button(
+                        label="📄 Baixar Memorial de Cálculo (.txt)",
+                        data=texto_memorial,
+                        file_name=f"Memorial_Gabiao_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                        mime="text/plain"
+                    )
                     
                 except Exception as e:
                     st.error(f"Erro ao processar o ficheiro: {e}")
             else:
                 st.warning("Faça o upload de um ficheiro DXF contendo a seção do muro antes de calcular.")
 
-# ------------------------------------------
-# ABA 2: INSTRUÇÕES
-# ------------------------------------------
 with tab_instrucoes:
     st.header("Como preparar o desenho no CAD")
     
@@ -172,7 +255,7 @@ with tab_instrucoes:
     ### 1. O Muro de Gabião
     * **O que desenhar:** Cada bloco (caixa) do gabião deve ser desenhado como uma **polilinha fechada** (`LWPOLYLINE`) ou retângulo.
     * **Onde colocar:** Todos os blocos devem estar obrigatoriamente num layer chamado **`GABIOES`**.
-    * **Inclinação (Tilt):** Pode desenhar o muro a prumo ou com qualquer inclinação (ex: 6 graus). O software calculará o centro de massa exato do polígono inclinado.
+    * **Inclinação (Tilt):** Pode desenhar o muro a prumo ou com qualquer inclinação. O software calculará o centro de massa exato do polígono.
 
     ### 2. O Maciço / Terrapleno
     * **O que desenhar:** Desenhe o contorno completo do solo que está a ser arrimado utilizando uma **polilinha fechada**. *Não utilize "hatch" (hachuras).*
@@ -187,6 +270,6 @@ with tab_instrucoes:
     ### ⚙️ Executando o Cálculo
     1. Guarde o seu desenho no AutoCAD/ZWCAD/BricsCAD no formato **DXF** (qualquer versão serve).
     2. Na aba **Calculadora**, faça o upload do ficheiro.
-    3. Confirme se os nomes dos Layers correspondem ao que usou no CAD. Se usou nomes diferentes, pode alterá-los nas caixas de texto.
-    4. Preencha as propriedades físicas do Solo e do Gabião e clique em **Calcular Resultados**.
+    3. Preencha as propriedades físicas do Solo e do Gabião e clique em **Calcular Resultados**.
+    4. Um botão de **Download** aparecerá no final da página com o seu Memorial Descritivo completo.
     """)
