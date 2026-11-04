@@ -83,12 +83,12 @@ class VerificacaoEstabilidade:
         }
 
 # ==========================================
-# GERADOR PROFISSIONAL DE PDF (COM TABELAS)
+# GERADOR PROFISSIONAL DE PDF (LIMPO DE SÍMBOLOS ESPECIAIS)
 # ==========================================
 class PDFMemorial(FPDF):
     def header(self):
         self.set_font("helvetica", "B", 14)
-        self.set_fill_color(41, 128, 185) # Azul corporativo
+        self.set_fill_color(41, 128, 185) 
         self.set_text_color(255, 255, 255)
         self.cell(0, 10, txt="SOFTWARE DE DIMENSIONAMENTO - MEMORIAL DE CÁLCULO", border=0, ln=1, align="C", fill=True)
         self.set_text_color(0, 0, 0)
@@ -101,9 +101,8 @@ class PDFMemorial(FPDF):
         self.cell(0, 10, txt=f"Página {self.page_no()} | Gerado automaticamente a partir de extração CAD", border=0, align="C")
         self.set_text_color(0, 0, 0)
 
-def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj):
+def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, fig_detalhe, fig_geral, info_proj):
     detalhes = resultados["__detalhes__"]
-    
     pdf = PDFMemorial()
     pdf.add_page()
     
@@ -113,7 +112,6 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
         pdf.cell(0, 8, txt=titulo, border=0, ln=1, fill=True)
         pdf.ln(2)
 
-    # 1. INFORMAÇÕES DO PROJETO
     seccao("1. INFORMAÇÕES DO PROJETO")
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(40, 6, txt="Título do Projeto:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=info_proj['titulo'], border=1, ln=1)
@@ -122,11 +120,11 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
     pdf.set_font("helvetica", "B", 10); pdf.cell(40, 6, txt="Data de Emissão:", border=1); pdf.set_font("helvetica", "", 10); pdf.cell(0, 6, txt=datetime.now().strftime('%d/%m/%Y %H:%M'), border=1, ln=1)
     pdf.ln(5)
 
-    # 2. PARÂMETROS GEOTÉCNICOS E PROPRIEDADES
     seccao("2. PARÂMETROS GEOTÉCNICOS E PROPRIEDADES")
     pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.1. Corpo do Muro (Gabião)", ln=1)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(100, 6, txt="Peso Específico da Pedra:", border=1); pdf.cell(40, 6, txt=f"{muro.gama_gabiao:.2f} kN/m³", border=1, ln=1, align="C")
+    # Trocado ³ por 3
+    pdf.cell(100, 6, txt="Peso Específico da Pedra:", border=1); pdf.cell(40, 6, txt=f"{muro.gama_gabiao:.2f} kN/m3", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Altura Total do Muro:", border=1); pdf.cell(40, 6, txt=f"{detalhes['altura_muro']:.2f} m", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Largura Projetada da Base:", border=1); pdf.cell(40, 6, txt=f"{detalhes['largura_base']:.2f} m", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Peso Total da Estrutura:", border=1); pdf.cell(40, 6, txt=f"{detalhes['peso_muro']:.2f} kN/m", border=1, ln=1, align="C")
@@ -134,19 +132,19 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
 
     pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.2. Terrapleno (Solo Retido)", ln=1)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_t.gama:.2f} kN/m³", border=1, ln=1, align="C")
-    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_t.phi:.2f}°", border=1, ln=1, align="C")
+    # Trocado ³ por 3 e ° por graus
+    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_t.gama:.2f} kN/m3", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_t.phi:.2f} graus", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Coesão:", border=1); pdf.cell(40, 6, txt=f"{solo_t.coesao:.2f} kPa", border=1, ln=1, align="C")
     pdf.ln(3)
 
     pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="2.3. Fundação (Solo de Apoio)", ln=1)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_f.gama:.2f} kN/m³", border=1, ln=1, align="C")
-    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_f.phi:.2f}°", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Peso Específico:", border=1); pdf.cell(40, 6, txt=f"{solo_f.gama:.2f} kN/m3", border=1, ln=1, align="C")
+    pdf.cell(100, 6, txt="Ângulo de Atrito Interno:", border=1); pdf.cell(40, 6, txt=f"{solo_f.phi:.2f} graus", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Tensão Admissível (q_adm):", border=1); pdf.cell(40, 6, txt=f"{solo_f.q_adm:.2f} kPa", border=1, ln=1, align="C")
     pdf.ln(5)
 
-    # 3. FORÇAS E MOMENTOS INTERMEDIÁRIOS
     seccao("3. CÁLCULO DE ESFORÇOS (EMPUXOS E MOMENTOS)")
     pdf.set_font("helvetica", "", 10)
     pdf.cell(100, 6, txt="Coeficiente de Empuxo Ativo (Ka):", border=1); pdf.cell(40, 6, txt=f"{detalhes['ka']:.4f}", border=1, ln=1, align="C")
@@ -154,20 +152,30 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
     pdf.cell(100, 6, txt="Momento de Tombamento (Mt):", border=1); pdf.cell(40, 6, txt=f"{detalhes['momento_tombamento']:.2f} kN.m/m", border=1, ln=1, align="C")
     pdf.cell(100, 6, txt="Momento Resistente do Muro (Mr):", border=1); pdf.cell(40, 6, txt=f"{detalhes['momento_resistente']:.2f} kN.m/m", border=1, ln=1, align="C")
     
-    # 4. GRÁFICO E RESULTADOS ELU (Nova Página)
+    # 4. GRÁFICOS (Nova Página)
     pdf.add_page()
-    seccao("4. GEOMETRIA DA SEÇÃO E SUPERFÍCIE DE RUPTURA")
+    seccao("4. GEOMETRIA E SUPERFÍCIES DE RUPTURA")
     
-    tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    tmpfile.close()
-    figura_plot.savefig(tmpfile.name, format="png", bbox_inches="tight", dpi=300)
-    pdf.image(tmpfile.name, x=15, w=180)
-    os.remove(tmpfile.name)
-    pdf.set_y(pdf.get_y() + 100) # Empurra o cursor abaixo da imagem
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, txt="4.1. Vista de Detalhe (Escala 1:1)", ln=1)
+    tmp_detalhe = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    tmp_detalhe.close()
+    fig_detalhe.savefig(tmp_detalhe.name, format="png", bbox_inches="tight", dpi=300)
+    pdf.image(tmp_detalhe.name, x=15, w=180)
+    os.remove(tmp_detalhe.name)
+    pdf.ln(95) 
     
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, txt="4.2. Vista Geral do Terreno (Escala 1:1)", ln=1)
+    tmp_geral = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    tmp_geral.close()
+    fig_geral.savefig(tmp_geral.name, format="png", bbox_inches="tight", dpi=300)
+    pdf.image(tmp_geral.name, x=15, w=180)
+    os.remove(tmp_geral.name)
+    
+    pdf.add_page()
     seccao("5. VERIFICAÇÕES DE ESTABILIDADE (ELU)")
     
-    # Tabela Cabeçalho
     pdf.set_font("helvetica", "B", 10)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(60, 8, txt="Critério de Verificação", border=1, align="C", fill=True)
@@ -179,16 +187,19 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
     def imprimir_linha(nome, fs_min, fs_calc):
         pdf.cell(60, 8, txt=nome, border=1, align="C")
         pdf.cell(30, 8, txt=f"{fs_min:.2f}", border=1, align="C")
-        pdf.cell(30, 8, txt=f"{fs_calc:.2f}" if fs_calc != float('inf') else "∞", border=1, align="C")
+        
+        # Trocado símbolo de infinito por "N/A"
+        texto_calc = f"{fs_calc:.2f}" if fs_calc != float('inf') else "N/A"
+        pdf.cell(30, 8, txt=texto_calc, border=1, align="C")
         
         status = "APROVADO" if fs_calc >= fs_min else "REPROVADO"
         if status == "APROVADO":
-            pdf.set_text_color(0, 128, 0) # Verde
+            pdf.set_text_color(0, 128, 0)
         else:
-            pdf.set_text_color(220, 0, 0) # Vermelho
+            pdf.set_text_color(220, 0, 0)
             
         pdf.cell(40, 8, txt=status, border=1, ln=1, align="C")
-        pdf.set_text_color(0, 0, 0) # Restaura cor preta
+        pdf.set_text_color(0, 0, 0)
         
     imprimir_linha("Estabilidade Global (Bishop)", 1.30, resultados['FS Global (Estimado)'])
     imprimir_linha("Tombamento da Estrutura", 1.50, resultados['FS Tombamento'])
@@ -198,9 +209,11 @@ def gerar_memorial_pdf(resultados, muro, solo_t, solo_f, figura_plot, info_proj)
     
     pdf.set_font("helvetica", "B", 10); pdf.cell(0, 6, txt="Distribuição de Tensões na Base de Apoio:", ln=1)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(80, 6, txt="Excentricidade do Esforço Resultante (e):", border=1); pdf.cell(40, 6, txt=f"{resultados['Excentricidade (m)']:.3f} m", border=1, ln=1, align="C")
-    pdf.cell(80, 6, txt="Tensão Máxima Aplicada (σ_max):", border=1); pdf.cell(40, 6, txt=f"{resultados['Tensão Máx Base (kPa)']:.2f} kPa", border=1, ln=1, align="C")
-    pdf.cell(80, 6, txt="Status da Compressão na Base:", border=1); pdf.cell(40, 6, txt=f"{resultados['Status da Base']}", border=1, ln=1, align="C")
+    pdf.cell(80, 6, txt="Excentricidade do Esforço (e):", border=1); pdf.cell(40, 6, txt=f"{resultados['Excentricidade (m)']:.3f} m", border=1, ln=1, align="C")
+    
+    # Removida qualquer menção ao símbolo sigma e caracteres especiais
+    pdf.cell(80, 6, txt="Tensao Maxima Aplicada:", border=1); pdf.cell(40, 6, txt=f"{resultados['Tensão Máx Base (kPa)']:.2f} kPa", border=1, ln=1, align="C")
+    pdf.cell(80, 6, txt="Status da Compressao na Base:", border=1); pdf.cell(40, 6, txt=f"{resultados['Status da Base']}", border=1, ln=1, align="C")
 
     return bytes(pdf.output())
 
@@ -262,9 +275,16 @@ with tab_calculadora:
                     motor = VerificacaoEstabilidade(solo_terrapleno, solo_fundacao, muro_cad)
                     resultados = motor.calcular_seguranca()
                     
+                    # Interface atualizada: Os dois gráficos aparecem visíveis um após o outro
                     st.subheader("Renderização e Superfície de Ruptura")
-                    fig = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"])
-                    st.pyplot(fig)
+                    fig_detalhe = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"], vista_geral=False)
+                    fig_geral = plotar_muro(geometria_cad, fs_global=resultados["FS Global (Estimado)"], vista_geral=True)
+                    
+                    st.markdown("**Vista 1: Detalhe do Muro**")
+                    st.pyplot(fig_detalhe)
+                    
+                    st.markdown("**Vista 2: Seção Completa (Terreno Geral)**")
+                    st.pyplot(fig_geral)
                     
                     st.subheader("Verificações Físicas (ELU)")
                     
@@ -290,7 +310,7 @@ with tab_calculadora:
                     st.dataframe(pd.DataFrame([tabela_resultados]))
                     
                     st.markdown("### Exportação Profissional")
-                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig, info_projeto)
+                    pdf_bytes = gerar_memorial_pdf(resultados, muro_cad, solo_terrapleno, solo_fundacao, fig_detalhe, fig_geral, info_projeto)
                     
                     st.download_button(
                         label="📄 Baixar Memorial de Cálculo Profissional (.pdf)",
